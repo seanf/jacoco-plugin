@@ -14,7 +14,7 @@ work
 build
 
 # Generated images from CoverageObjectGraphTest
-/*.png
+/*.svg
 
 # other
 *~

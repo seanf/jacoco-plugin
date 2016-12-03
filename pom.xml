@@ -190,8 +190,20 @@ THE SOFTWARE.
             <artifactId>plexus-utils</artifactId>
             <version>3.0.24</version>
         </dependency>
+        <dependency>
+            <groupId>org.apache.xmlgraphics</groupId>
+            <artifactId>batik-svggen</artifactId>
+            <version>1.7</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.xmlgraphics</groupId>
+            <artifactId>batik-dom</artifactId>
+            <version>1.7</version>
+            <scope>test</scope>
+        </dependency>
    </dependencies>
-   
+
 	<distributionManagement>
 		<repository>
 		  <id>maven.jenkins-ci.org</id>

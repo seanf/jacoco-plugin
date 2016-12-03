@@ -1,22 +1,25 @@
 package hudson.plugins.jacoco.model;
 
-import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
 
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.FontFormatException;
-import java.io.ByteArrayOutputStream;
+import java.awt.Rectangle;
+import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.StringWriter;
 import java.util.GregorianCalendar;
 import java.util.Locale;
 
+import org.apache.batik.dom.GenericDOMImplementation;
+import org.apache.batik.svggen.SVGGraphics2D;
 import org.apache.commons.io.FileUtils;
 import org.easymock.EasyMock;
 import org.easymock.IMocksControl;
-import org.jfree.chart.ChartUtilities;
 import org.jfree.chart.JFreeChart;
 import org.junit.After;
 import org.junit.Before;
@@ -26,6 +29,8 @@ import org.junit.Test;
 import hudson.plugins.jacoco.AbstractJacocoTestBase;
 import hudson.plugins.jacoco.model.CoverageGraphLayout.CoverageType;
 import hudson.plugins.jacoco.model.CoverageGraphLayout.CoverageValue;
+import org.w3c.dom.DOMImplementation;
+import org.w3c.dom.Document;
 
 /**
  * @author Martin Heinzerling
@@ -42,9 +47,14 @@ public class CoverageObjectGraphTest extends AbstractJacocoTestBase
 	public static void loadFont() throws IOException, FontFormatException
 	{
 		// just a free font nobody has on their system, but different enough to default sans-serif,
-		// that you will see missing system font replacement in the outbut. See #replaceFonts()
-		InputStream is = new FileInputStream("resources/test/belligerent.ttf");
-		font=Font.createFont(Font.TRUETYPE_FONT, is);
+		// that you will see missing system font replacement in the output. See #replaceFonts()
+		InputStream is = new BufferedInputStream(new FileInputStream(
+				"resources/test/belligerent.ttf"));
+		try {
+			font = Font.createFont(Font.TRUETYPE_FONT, is);
+		} finally {
+			is.close();
+		}
 	}
 
 	@Before
@@ -73,7 +83,7 @@ public class CoverageObjectGraphTest extends AbstractJacocoTestBase
 				.plot().type(CoverageType.LINE).value(CoverageValue.COVERED).color(Color.GREEN);
 
 		JFreeChart chart = createTestCoverage().createGraph(new GregorianCalendar(), WIDTH, HEIGHT, layout).getGraph();
-		assertGraph(chart, "simple.png");
+		assertGraph(chart, "simple.svg");
 	}
 
 	@Test
@@ -85,7 +95,7 @@ public class CoverageObjectGraphTest extends AbstractJacocoTestBase
 				.plot().type(CoverageType.LINE).value(CoverageValue.COVERED).color(Color.GREEN);
 
 		JFreeChart chart = createTestCoverage().createGraph(new GregorianCalendar(), WIDTH, HEIGHT, layout).getGraph();
-		assertGraph(chart, "baseStroke.png");
+		assertGraph(chart, "baseStroke.svg");
 	}
 
 	@Test
@@ -102,7 +112,7 @@ public class CoverageObjectGraphTest extends AbstractJacocoTestBase
 				.plot().type(CoverageType.LINE).value(CoverageValue.PERCENTAGE).color(Color.YELLOW);
 
 		JFreeChart chart = createTestCoverage().createGraph(new GregorianCalendar(), WIDTH, HEIGHT, layout).getGraph();
-		assertGraph(chart, "multiple.png");
+		assertGraph(chart, "multiple.svg");
 	}
 
 	@Test
@@ -114,7 +124,7 @@ public class CoverageObjectGraphTest extends AbstractJacocoTestBase
 				.plot().type(CoverageType.BRANCH).value(CoverageValue.PERCENTAGE).color(Color.RED);
 
 		JFreeChart chart = createTestCoverage().createGraph(new GregorianCalendar(), WIDTH, HEIGHT, layout).getGraph();
-		assertGraph(chart, "crop5.png");
+		assertGraph(chart, "crop5.svg");
 	}
 
 	@Test
@@ -126,7 +136,7 @@ public class CoverageObjectGraphTest extends AbstractJacocoTestBase
 				.plot().type(CoverageType.BRANCH).value(CoverageValue.PERCENTAGE).color(Color.RED);
 
 		JFreeChart chart = createTestCoverage().createGraph(new GregorianCalendar(), WIDTH, HEIGHT, layout).getGraph();
-		assertGraph(chart, "crop100.png");
+		assertGraph(chart, "crop100.svg");
 	}
 
 	@Test
@@ -137,7 +147,7 @@ public class CoverageObjectGraphTest extends AbstractJacocoTestBase
 				.plot().type(CoverageType.BRANCH).value(CoverageValue.PERCENTAGE).color(Color.RED);
 
 		JFreeChart chart = createTestCoverage().createGraph(new GregorianCalendar(), WIDTH, HEIGHT, layout).getGraph();
-		assertGraph(chart, "skipzero.png");
+		assertGraph(chart, "skipzero.svg");
 	}
 
 	private TestCoverageObject createTestCoverage()
@@ -154,35 +164,25 @@ public class CoverageObjectGraphTest extends AbstractJacocoTestBase
 
 	private void assertGraph(JFreeChart chart, String file, boolean writeFile) throws IOException
 	{
+		File outputFile = new File(file).getAbsoluteFile();
 		replaceFonts(chart);
+		File expectedFile = new File("resources/test/" + file).getAbsoluteFile();
+		String actual = saveChartAsSVG(chart, WIDTH, HEIGHT);
 		if (writeFile)
 		{
-			File f = new File(file);
-			ChartUtilities.saveChartAsPNG(f, chart, WIDTH, HEIGHT);
-			System.out.println("Stored graph file to " + f.getAbsolutePath());
+			FileUtils.writeStringToFile(outputFile, actual, "UTF-8");
+			System.out.println("Stored graph file to " + outputFile.getAbsolutePath());
 		}
-		byte[] expected = FileUtils.readFileToByteArray(new File("resources/test/" + file));
-		byte[] actual;
+		String expected = FileUtils.readFileToString(expectedFile);
 
-		ByteArrayOutputStream out = new ByteArrayOutputStream();
 		try
 		{
-			ChartUtilities.writeChartAsPNG(out, chart, WIDTH, HEIGHT, null);
-			actual = out.toByteArray();
-		}
-		finally
-		{
-			out.close();
-		}
-		try
-		{
-			assertArrayEquals(expected, actual);
+			assertEquals(expected, actual);
 		}
 		catch (AssertionError e)
 		{
-			File f = new File(file);
-			ChartUtilities.saveChartAsPNG(f, chart, WIDTH, HEIGHT);
-			System.err.println("Stored wrong graph file to " + f.getAbsolutePath());
+			FileUtils.writeStringToFile(outputFile, actual, "UTF-8");
+			System.err.println("Stored wrong graph file to " + outputFile.getAbsolutePath());
 			throw e;
 		}
 	}
@@ -213,6 +213,36 @@ public class CoverageObjectGraphTest extends AbstractJacocoTestBase
 			chart.getCategoryPlot().getRangeAxis(i).setLabelFont(font.deriveFont(chart.getCategoryPlot().getRangeAxis(i).getLabelFont().getStyle(), chart.getCategoryPlot().getRangeAxis(i).getLabelFont().getSize()));
 			i++;
 		}
+	}
+
+	/**
+	 * Saves a JFreeChart as an SVG String. Note that the SVG may not
+	 * render perfectly due to bounds issues, but it should be more
+	 * consistent than PNG for unit testing.
+	 *
+	 * http://dolf.trieschnigg.nl/jfreechart/
+	 *
+	 * @param chart JFreeChart to export
+	 * @param width the width of the viewport
+	 * @param height the height of the viewport
+	 * @return a string with SVG
+	 * @throws IOException if writing the svgFile fails.
+	 */
+	private String saveChartAsSVG(JFreeChart chart, int width, int height) throws IOException {
+		// Get a DOMImplementation and create an XML document
+		DOMImplementation domImpl =
+				GenericDOMImplementation.getDOMImplementation();
+		Document document = domImpl.createDocument(null, "svg", null);
+
+		// Create an instance of the SVG Generator
+		SVGGraphics2D svgGenerator = new SVGGraphics2D(document);
+
+		// draw the chart in the SVG generator
+		chart.draw(svgGenerator, new Rectangle(width, height));
+
+		StringWriter stringWriter = new StringWriter();
+		svgGenerator.stream(stringWriter, true /* use css */);
+		return stringWriter.toString();
 	}
 
 }
